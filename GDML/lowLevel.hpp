@@ -13,8 +13,8 @@
 #include <libgen.h>         // basename()
 #include <assert.h>         // assert()
 #include <stdio.h>          // fprintf()
-#include <dlfcn.h>        // dladdr()
-#include <mach/mach_vm.h> // mach_vm_*
+#include <dlfcn.h>          // dladdr()
+#include <mach/mach_vm.h>   // mach_vm_*
 
 #include <mach-o/dyld.h>    // _dyld_*
 #include <mach-o/nlist.h>   // nlist/nlist_64
@@ -39,6 +39,8 @@ kern_return_t  _get_jmp_bytes(void* to, char* buf);
 kern_return_t  _patch_memory(void *address, mach_msg_type_number_t count, uint8_t *new_bytes);
 void*          _function_ptr_from_name(const char *function_name, const char *suggested_image_name);
 void*          _function_ptr_within_image(const char *function_name, void *macho_image_header, uintptr_t vm_image_slide);
+kern_return_t _island_jump_back(void* to, void* from);
+kern_return_t _protectProcessMemory(mach_vm_address_t address, size_t length, vm_prot_t protection);
 int dupe(void *function, void **duplicate);
 
 int rd_duplicate_function(void *function, void **duplicate);

@@ -7,7 +7,7 @@
 //
 
 #include "lowLevel.hpp"
-
+#include <Zydis/Zydis.h>
 int dupe(void *function, void **duplicate)
 {
     if (!function || !duplicate) {
@@ -63,6 +63,7 @@ int dupe(void *function, void **duplicate)
         /* Backup an original function implementation if needed */
         if (duplicate) {
             *duplicate = (void *)(target + ((mach_vm_address_t)function - (mach_vm_address_t)image));
+            _island_jump_back(function, *duplicate);
         }
 
         target;
@@ -143,7 +144,7 @@ kern_return_t _remap_image(void *image, mach_vm_size_t image_slide, mach_vm_addr
             /* Target information */
             mach_task_self(), &seg_target, vmsize, 0x0,
             /* Flags */
-            (VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE),
+            (VM_FLAGS_FIXED | 0x4000 ),
             /* Source information */
             mach_task_self(), seg_source,
             /* Should we copy this region? (it will be directly mapped otherwise) */
@@ -192,6 +193,48 @@ mach_vm_size_t _image_size(void *image, mach_vm_size_t image_slide, mach_vm_addr
     }
 
     return (image_end - image_addr);
+}
+
+kern_return_t _island_jump_back(void* to, void* from) {
+    int jmp_back_offset = 30;
+    ZydisDecoder decoder;
+    ZydisDecoderInit(&decoder,
+                     ZYDIS_MACHINE_MODE_LONG_64,
+                     ZYDIS_ADDRESS_WIDTH_64);
+
+    int offset = 0;
+    char data[64];
+    memcpy(&data, from, 64);
+
+    bool success = false;
+    ZydisDecodedInstruction instruction;
+    while (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&decoder, data + offset,
+      (jmp_back_offset+15) - offset, &instruction))) {
+        offset += instruction.length;
+        if (offset >= jmp_back_offset) {
+          success = true;
+          jmp_back_offset = offset;
+          break;
+        }
+    }
+
+    if (success) {
+      kern_return_t ret = _get_jmp_bytes(
+        (void*)((uintptr_t)to + jmp_back_offset),
+        &data[offset]);
+
+      if (ret == KERN_SUCCESS) {
+        _protectProcessMemory((mach_vm_address_t)from, 64,
+          VM_PROT_WRITE | VM_PROT_READ | VM_PROT_EXECUTE);
+
+        memcpy(from, &data, 64);
+        printf("Patched %p + %d with a jump to %p\n", from, jmp_back_offset, (uintptr_t)to + jmp_back_offset + 4);
+        return KERN_SUCCESS;
+      }
+    } else {
+      RDErrorLog("Could not parse assembly, this really shouldnt happen wtf");
+      return 3;
+    }
 }
 
 kern_return_t _get_jmp_bytes(void* to, char* buf)

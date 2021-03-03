@@ -6,6 +6,7 @@
 //  Copyright © 2020 camden314. All rights reserved.
 //
 #include <vector>
+#include <string>
 
 using namespace std;
 
@@ -16,6 +17,22 @@ using namespace std;
 typedef void(*func_t)();
 /* The classes below are exported */
 #pragma GCC visibility push(default)
+
+struct OriginalNotFoundException : public exception
+{
+  const char * what () const throw ()
+  {
+    return "Cannot find the original address of this function";
+  }
+};
+
+struct ModNotFoundException : public exception
+{
+  const char * what () const throw ()
+  {
+    return "Cannot find the mod container given the name";
+  }
+};
 
 class BaseContainer {
 protected:
@@ -53,34 +70,28 @@ class ModContainer
 public:
     static vector<ModContainer*> containers;
     template <typename S>
-    static ModContainer* containerByName(S name);
+    static ModContainer* containerByName(S name) {
+        for(ModContainer* i : ModContainer::containers) {
+            std::string cmp(i->containerName);
+            if(cmp==name) {
+                return i;
+            }
+        }
+        throw ModNotFoundException();
+    }
     ModContainer(char const* name);
     ~ModContainer();
     void enable();
     void disable();
     void registerWrite(long address, size_t byteCount, char* bytes);
-    void registerHook(long address, func_t function);
+
+    template <typename F>
+    F registerHook(long address, F function);
     func_t getOriginal(long address);
     char const* getName();
 private:
     vector<BaseContainer*> mods;
     char const* containerName;
-};
-
-struct OriginalNotFoundException : public exception
-{
-  const char * what () const throw ()
-  {
-    return "Cannot find the original address of this function";
-  }
-};
-
-struct ModNotFoundException : public exception
-{
-  const char * what () const throw ()
-  {
-    return "Cannot find the mod container given the name";
-  }
 };
 
 long getBase();

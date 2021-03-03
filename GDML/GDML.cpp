@@ -7,10 +7,11 @@
 //
 
 #include <iostream>
+#include <algorithm>
 #include "GDML.hpp"
 #include "lowLevel.hpp"
 
-vector<ModContainer*> ModContainer::containers = {};
+vector<ModContainer*> ModContainer::containers;
 
 BaseContainer::~BaseContainer() {
     std::cout<<"bye"<<endl;
@@ -92,12 +93,8 @@ char const* ModContainer::getName() {
     return containerName;
 }
 void ModContainer::registerWrite(long address, size_t byteCount, char* bytes) {
-    MemoryContainer write(address, byteCount, bytes);
-    mods.push_back(&write);
-}
-void ModContainer::registerHook(long address, func_t function) {
-    HookContainer* hook = new HookContainer(address, function);
-    mods.push_back(hook);
+    MemoryContainer* write = new MemoryContainer(address, byteCount, bytes);
+    mods.push_back(write);
 }
 
 func_t ModContainer::getOriginal(long addr) {
@@ -113,16 +110,4 @@ func_t ModContainer::getOriginal(long addr) {
 
 long getBase() {
     return _dyld_get_image_vmaddr_slide(0)+0x100000000;
-}
-
-template <typename S>
-ModContainer* ModContainer::containerByName(S name) {
-    for(ModContainer* i : ModContainer::containers) {
-        std::string cmp(i->containerName);
-        if(cmp==name) {
-            return i;
-        }
-    }
-    throw ModNotFoundException();
-    
 }
